@@ -1,0 +1,88 @@
+// Parallel reduction kernel — shared memory, intentional bank conflict stride
+// for testing the bank conflict heuristic detector
+.version 7.5
+.target sm_80
+.address_size 64
+
+.visible .entry reduce_sum(
+    .param .u64 param_in,
+    .param .u64 param_out,
+    .param .u32 param_n
+)
+{
+    .reg .pred  %p<4>;
+    .reg .b32   %r<16>;
+    .reg .b64   %rd<16>;
+    .reg .f32   %f<8>;
+
+    // 256-thread block shared memory: 256 floats = 1024 bytes
+    .shared .align 4 .b8 smem[1024];
+
+    ld.param.u64    %rd1, [param_in];
+    ld.param.u64    %rd2, [param_out];
+    ld.param.u32    %r1,  [param_n];
+
+    mov.u32         %r2, %tid.x;
+    mov.u32         %r3, %ctaid.x;
+    mov.u32         %r4, %ntid.x;
+    mad.lo.s32      %r5, %r3, %r4, %r2;
+
+    // Bounds check
+    setp.ge.u32     %p1, %r5, %r1;
+    @%p1 bra        $zero_fill;
+
+    // Load input element
+    cvta.to.global.u64  %rd3, %rd1;
+    mul.wide.s32        %rd4, %r5, 4;
+    add.u64             %rd5, %rd3, %rd4;
+    ld.global.f32       %f1, [%rd5];
+    bra                 $store_smem;
+
+$zero_fill:
+    mov.f32             %f1, 0f00000000;
+
+$store_smem:
+    // Store to shared memory: smem[tid]
+    mul.wide.s32        %rd6, %r2, 4;
+    mov.u64             %rd7, smem;
+    add.u64             %rd8, %rd7, %rd6;
+    st.shared.f32       [%rd8], %f1;
+
+    bar.sync            0;
+
+    // Reduction step 1: stride = 128 (no bank conflict)
+    setp.lt.u32         %p2, %r2, 128;
+    @!%p2 bra           $step2;
+    add.u64             %rd9, %rd8, 512;   // +128 floats * 4 bytes
+    ld.shared.f32       %f2, [%rd9];
+    add.f32             %f1, %f1, %f2;
+    st.shared.f32       [%rd8], %f1;
+
+$step2:
+    bar.sync            0;
+
+    // Reduction step 2: stride = 32 words = 128 bytes — BANK CONFLICT RISK
+    // Accessing smem with +128 byte stride causes 32-way bank conflict
+    setp.lt.u32         %p3, %r2, 64;
+    @!%p3 bra           $step3;
+    add.u64             %rd10, %rd8, 128;   // stride 128 bytes = 32 banks conflict
+    ld.shared.f32       %f3, [%rd10];
+    add.f32             %f1, %f1, %f3;
+    st.shared.f32       [%rd8], %f1;
+
+$step3:
+    bar.sync            0;
+
+    // Write output (thread 0 only)
+    setp.ne.u32         %p4, %r2, 0;
+    @%p4 bra            $exit;
+
+    ld.shared.f32       %f4, [smem];
+    cvta.to.global.u64  %rd11, %rd2;
+    mul.wide.s32        %rd12, %r3, 4;
+    add.u64             %rd13, %rd11, %rd12;
+    st.global.f32       [%rd13], %f4;
+
+$exit:
+    ret;
+}

@@ -7,7 +7,7 @@ Thank you for your interest in contributing! This document covers the developmen
 ## Getting Started
 
 ```bash
-git clone https://github.com/yourname/cuda-sage
+git clone https://github.com/hkevin01/cuda-sage
 cd cuda-sage
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"

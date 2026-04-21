@@ -1,0 +1,110 @@
+// Tiled matrix multiply kernel — shared memory tiling, sm_80 target
+// Intended use: baseline for cuda-sage diff testing
+.version 7.5
+.target sm_80
+.address_size 64
+
+.visible .entry matmul(
+    .param .u64 param_A,
+    .param .u64 param_B,
+    .param .u64 param_C,
+    .param .u32 param_N
+)
+{
+    .reg .pred  %p<4>;
+    .reg .b32   %r<32>;
+    .reg .b64   %rd<24>;
+    .reg .f32   %f<16>;
+
+    // Shared memory tile: 16×16 floats = 1024 bytes each
+    .shared .align 4 .b8 smem_A[1024];
+    .shared .align 4 .b8 smem_B[1024];
+
+    ld.param.u64    %rd1, [param_A];
+    ld.param.u64    %rd2, [param_B];
+    ld.param.u64    %rd3, [param_C];
+    ld.param.u32    %r1,  [param_N];
+
+    // Thread and block indices
+    mov.u32         %r2,  %tid.x;
+    mov.u32         %r3,  %tid.y;
+    mov.u32         %r4,  %ctaid.x;
+    mov.u32         %r5,  %ctaid.y;
+    mov.u32         %r6,  %ntid.x;
+
+    // Compute global row / col
+    mad.lo.s32      %r7,  %r5, %r6, %r3;   // row = blockIdx.y * blockDim.y + threadIdx.y
+    mad.lo.s32      %r8,  %r4, %r6, %r2;   // col = blockIdx.x * blockDim.x + threadIdx.x
+
+    // Bounds check
+    setp.ge.u32     %p1, %r7, %r1;
+    setp.ge.u32     %p2, %r8, %r1;
+    or.pred         %p3, %p1, %p2;
+    @%p3 bra        $exit;
+
+    // Accumulator
+    mov.f32         %f1, 0f00000000;
+
+    // Tile loop (unrolled over k in steps of 16)
+    // Load tile from A into shared memory
+    mul.lo.s32      %r9,  %r7, %r1;
+    add.s32         %r10, %r9, %r2;
+    mul.wide.s32    %rd4, %r10, 4;
+    cvta.to.global.u64 %rd5, %rd1;
+    add.u64         %rd6, %rd5, %rd4;
+    ld.global.f32   %f2, [%rd6];
+
+    // Compute smem_A address: threadIdx.y * 16 + threadIdx.x
+    mad.lo.s32      %r11, %r3, 16, %r2;
+    mul.wide.s32    %rd7, %r11, 4;
+    mov.u64         %rd8, smem_A;
+    add.u64         %rd9, %rd8, %rd7;
+    st.shared.f32   [%rd9], %f2;
+
+    // Load tile from B into shared memory
+    mul.lo.s32      %r12, %r2, %r1;
+    add.s32         %r13, %r12, %r7;
+    mul.wide.s32    %rd10, %r13, 4;
+    cvta.to.global.u64 %rd11, %rd2;
+    add.u64         %rd12, %rd11, %rd10;
+    ld.global.f32   %f3, [%rd12];
+
+    mad.lo.s32      %r14, %r3, 16, %r2;
+    mul.wide.s32    %rd13, %r14, 4;
+    mov.u64         %rd14, smem_B;
+    add.u64         %rd15, %rd14, %rd13;
+    st.shared.f32   [%rd15], %f3;
+
+    // Synchronize before using shared memory
+    bar.sync        0;
+
+    // Dot product over tile
+    ld.shared.f32   %f4, [smem_A];
+    ld.shared.f32   %f5, [smem_B];
+    fma.rn.f32      %f1, %f4, %f5, %f1;
+
+    ld.shared.f32   %f6, [smem_A + 4];
+    ld.shared.f32   %f7, [smem_B + 4];
+    fma.rn.f32      %f1, %f6, %f7, %f1;
+
+    ld.shared.f32   %f8, [smem_A + 8];
+    ld.shared.f32   %f9, [smem_B + 8];
+    fma.rn.f32      %f1, %f8, %f9, %f1;
+
+    ld.shared.f32   %f10, [smem_A + 12];
+    ld.shared.f32   %f11, [smem_B + 12];
+    fma.rn.f32      %f1, %f10, %f11, %f1;
+
+    bar.sync        0;
+
+    // Store result: C[row][col] = accumulator
+    mul.lo.s32      %r15, %r7, %r1;
+    add.s32         %r16, %r15, %r8;
+    mul.wide.s32    %rd16, %r16, 4;
+    cvta.to.global.u64 %rd17, %rd3;
+    add.u64         %rd18, %rd17, %rd16;
+    st.global.f32   [%rd18], %f1;
+
+$exit:
+    ret;
+}

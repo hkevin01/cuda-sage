@@ -21,7 +21,7 @@ NVIDIA's ecosystem gives you post-execution profilers (Nsight Compute, nvprof). 
 ## Quick Start
 
 ```bash
-git clone https://github.com/yourname/cuda-sage
+git clone https://github.com/hkevin01/cuda-sage
 cd cuda-sage
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
@@ -75,6 +75,25 @@ Machine-readable output for CI integration and toolchain pipelines:
 cuda-sage analyze kernel.ptx --arch sm_80 --format json
 cuda-sage analyze kernel.ptx --arch sm_80 --format json --output report.json
 ```
+
+### CUDA C Source Transformer
+Apply five proven, non-breaking performance transformations to CUDA C/C++ source files:
+
+```python
+from cudasage.transform import CUDASourceTransformer
+
+result = CUDASourceTransformer().transform(open("mykernel.cu").read())
+print(result.transformed_source)
+for t in result.transforms:
+    print(f"[{t.impact.upper()}] {t.name}: {t.description}")
+```
+
+Five transform passes (applied in order):
+- **T1 `__launch_bounds__`** — caps register allocation → higher occupancy
+- **T2 `__restrict__`** — removes alias assumptions → load.ca + ILP gains
+- **T3 shared mem padding** — adds +1 pad on multiples-of-16 inner dim → zero bank conflicts
+- **T4 `#pragma unroll`** — unrolls constant-bound inner loops → no branch overhead
+- **T5 divergence annotation** — flags `threadIdx%N` patterns + inserts `__ballot_sync` hint
 
 ---
 
@@ -226,20 +245,33 @@ src/cudasage/
 │   ├── occupancy.py     # CUDA occupancy formula, 4 limiting factors, curve
 │   ├── divergence.py    # Forward taint propagation, setp detection, bra flagging
 │   └── memory.py        # Spills, bank conflicts, missing sync, intensity proxy
+├── transform/
+│   └── source_transform.py  # CUDA C/C++ source-to-source optimizer (5 passes)
 ├── reporter.py          # Rich terminal output + JSON serialization
 └── cli.py               # Typer CLI: analyze, diff, list-archs
 
 tests/
 ├── fixtures/
 │   ├── vecadd.ptx            # Clean kernel (no divergence, coalesced access)
-│   └── divergent_kernel.ptx  # Problem kernel (divergence, spills, SFU ops)
+│   ├── vecadd.cu             # CUDA C baseline for source transformer tests
+│   ├── divergent_kernel.ptx  # Problem kernel (divergence, spills, SFU ops)
+│   ├── matmul.ptx            # Tiled matrix multiply (shared memory, bar.sync, high regs)
+│   └── reduction.ptx         # Parallel reduction (shared memory, divergent steps)
+├── conftest.py           # Shared session-scoped pytest fixtures
 ├── test_parser.py        # 11 parser tests
 ├── test_occupancy.py     # 10 occupancy tests
 ├── test_divergence.py    # 6 divergence tests
 ├── test_memory.py        # 8 memory tests
 ├── test_cli.py           # 24 CLI integration tests
 ├── test_reporter.py      # 13 reporter / JSON tests
-└── test_public_api.py    # 26 public API + edge case tests
+├── test_public_api.py    # 26 public API + edge case tests
+├── test_fixtures.py      # 27 tests for matmul and reduction kernels
+└── test_transform.py     # 22 source transformer tests
+
+docs/
+├── api-reference.md      # Complete Python library API reference
+├── analysis-guide.md     # How to interpret occupancy, divergence, memory output
+└── architecture-specs.md # Per-architecture hardware resource tables
 ```
 
 ---
@@ -249,7 +281,7 @@ tests/
 ```bash
 pip install -e ".[dev]"
 pytest -v
-# 98 passed in 0.28s
+# 169 passed in 0.33s
 ```
 
 Coverage spans:
@@ -260,6 +292,18 @@ Coverage spans:
 - CLI integration (all commands, JSON output, `--output` file, error paths)
 - Reporter (JSON serialization, Rich rendering, curve serialization)
 - Public API (all exports, edge cases, frozen dataclasses)
+- Fixture kernels (matmul tiling, reduction, shared memory patterns)
+- Source transformer (T1–T5 passes, regex edge cases, integration)
+
+---
+
+## Documentation
+
+Full documentation is in the [docs/](docs/) folder:
+
+- [API Reference](docs/api-reference.md) — all classes, methods, and data fields
+- [Analysis Guide](docs/analysis-guide.md) — how to interpret each analysis pass, example patterns, and fixes
+- [Architecture Specs](docs/architecture-specs.md) — hardware tables for sm_70 through sm_90
 
 ---
 
@@ -268,7 +312,7 @@ Coverage spans:
 ```bash
 pip install cuda-sage        # from PyPI (when published)
 # or from source:
-git clone https://github.com/yourname/cuda-sage
+git clone https://github.com/hkevin01/cuda-sage
 cd cuda-sage
 pip install -e ".[dev]"
 ```

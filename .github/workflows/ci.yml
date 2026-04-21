@@ -72,14 +72,26 @@ jobs:
       - name: Smoke test — list-archs
         run: cuda-sage list-archs
 
-      - name: Smoke test — analyze text
+      - name: Smoke test — analyze text (vecadd)
         run: cuda-sage analyze tests/fixtures/vecadd.ptx --arch sm_80
 
-      - name: Smoke test — analyze JSON
-        run: cuda-sage analyze tests/fixtures/vecadd.ptx --arch sm_80 --format json | python -c "import json,sys; d=json.load(sys.stdin); assert d[0]['occupancy']['value'] > 0"
-
-      - name: Smoke test — analyze with curve
+      - name: Smoke test — analyze text (divergent + curve)
         run: cuda-sage analyze tests/fixtures/divergent_kernel.ptx --arch sm_86 --curve
+
+      - name: Smoke test — analyze text (matmul + curve)
+        run: cuda-sage analyze tests/fixtures/matmul.ptx --arch sm_80 --curve
+
+      - name: Smoke test — analyze JSON (vecadd)
+        run: cuda-sage analyze tests/fixtures/vecadd.ptx --arch sm_80 --format json | python -c "import json,sys; d=json.load(sys.stdin); assert d[0]['occupancy']['value'] > 0; assert d[0]['divergence']['has_divergence'] == False"
+
+      - name: Smoke test — analyze JSON (divergent)
+        run: cuda-sage analyze tests/fixtures/divergent_kernel.ptx --arch sm_86 --format json | python -c "import json,sys; d=json.load(sys.stdin); assert d[0]['divergence']['has_divergence'] == True; assert d[0]['divergence']['high_severity_count'] >= 1"
+
+      - name: Smoke test — analyze JSON (matmul with curve)
+        run: cuda-sage analyze tests/fixtures/matmul.ptx --arch sm_80 --format json --curve | python -c "import json,sys; d=json.load(sys.stdin); assert 'occupancy_curve' in d[0]; assert len(d[0]['occupancy_curve']) == 10"
 
       - name: Smoke test — diff (same file)
         run: cuda-sage diff tests/fixtures/vecadd.ptx tests/fixtures/vecadd.ptx --arch sm_80
+
+      - name: Smoke test — version flag
+        run: cuda-sage --version | grep -q "cuda-sage v"

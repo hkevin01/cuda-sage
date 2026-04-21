@@ -4,6 +4,8 @@ Public API — import the components you need:
 
     from cudasage import PTXParser, OccupancyAnalyzer, DivergenceAnalyzer, MemoryAnalyzer
     from cudasage import get_arch, ARCHITECTURES
+    from cudasage.transform import CUDASourceTransformer
+    from cudasage.tune import KernelAutoTuner, TuneParam, SearchSpace
 """
 # ─────────────────────────────────────────────────────────────────────────────
 # Module:         cudasage
@@ -19,6 +21,8 @@ from .analyzers.occupancy import OccupancyAnalyzer, OccupancyResult, OccupancyCu
 from .analyzers.divergence import DivergenceAnalyzer, DivergenceResult, DivergenceSite
 from .analyzers.memory import MemoryAnalyzer, MemoryResult, SpillWarning, BankConflictRisk
 from .models.architectures import Architecture, ARCHITECTURES, get_arch
+from .transform import CUDASourceTransformer, TransformResult, Transform
+from .tune import TuneParam, SearchSpace, KernelAutoTuner, TuneResult, BenchmarkPoint, TuneCache
 
 __all__ = [
     # Parser
@@ -29,6 +33,10 @@ __all__ = [
     "MemoryAnalyzer", "MemoryResult", "SpillWarning", "BankConflictRisk",
     # Architecture models
     "Architecture", "ARCHITECTURES", "get_arch",
+    # Source transformer
+    "CUDASourceTransformer", "TransformResult", "Transform",
+    # Auto-tuner
+    "TuneParam", "SearchSpace", "KernelAutoTuner", "TuneResult", "BenchmarkPoint", "TuneCache",
     # Version
     "__version__",
 ]
