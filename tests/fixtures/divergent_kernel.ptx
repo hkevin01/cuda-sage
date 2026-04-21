@@ -1,0 +1,62 @@
+// Kernel with intentional warp divergence and register spills (for analysis testing)
+.version 7.5
+.target sm_86
+.address_size 64
+
+.visible .entry divergent_kernel(
+    .param .u64 param_data,
+    .param .u64 param_out,
+    .param .u32 param_n
+)
+{
+    .reg .pred  %p<4>;
+    .reg .b32   %r<20>;
+    .reg .b64   %rd<14>;
+    .reg .f32   %f<12>;
+
+    ld.param.u64    %rd1, [param_data];
+    ld.param.u64    %rd2, [param_out];
+    ld.param.u32    %r2,  [param_n];
+
+    mov.u32         %r3, %ctaid.x;
+    mov.u32         %r4, %ntid.x;
+    mov.u32         %r5, %tid.x;
+    mad.lo.s32      %r1, %r3, %r4, %r5;
+
+    setp.ge.s32     %p1, %r1, %r2;
+    @%p1 bra        $exit;
+
+    // Load input
+    cvta.to.global.u64  %rd3, %rd1;
+    mul.wide.s32        %rd4, %r1, 4;
+    add.u64             %rd5, %rd3, %rd4;
+    ld.global.f32       %f1, [%rd5];
+
+    // *** DIVERGENCE: branch on (threadIdx.x % 2 == 0) — 50% divergence ***
+    rem.u32         %r6, %r5, 2;
+    setp.eq.u32     %p2, %r6, 0;
+    @%p2 bra        $even_path;
+
+    // Odd threads: expensive path with special function
+    mufu.sin        %f2, %f1;
+    mufu.cos        %f3, %f1;
+    add.f32         %f4, %f2, %f3;
+    bra             $merge;
+
+$even_path:
+    // Even threads: simple multiply
+    mul.f32         %f4, %f1, %f1;
+
+$merge:
+    // *** REGISTER SPILL: compiler forced to spill to local memory ***
+    st.local.f32    [%rd6], %f4;
+    ld.local.f32    %f5,    [%rd6];
+
+    // Store result
+    cvta.to.global.u64  %rd7, %rd2;
+    add.u64             %rd8, %rd7, %rd4;
+    st.global.f32       [%rd8], %f5;
+
+$exit:
+    ret;
+}

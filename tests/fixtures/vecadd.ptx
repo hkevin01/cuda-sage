@@ -1,0 +1,53 @@
+// Vector addition kernel — clean PTX (no divergence, good coalescing)
+// Target: sm_80 (Ampere A100)
+.version 7.5
+.target sm_80
+.address_size 64
+
+.visible .entry vecadd(
+    .param .u64 param_a,
+    .param .u64 param_b,
+    .param .u64 param_c,
+    .param .u32 param_n
+)
+{
+    .reg .pred  %p<2>;
+    .reg .b32   %r<8>;
+    .reg .b64   %rd<12>;
+    .reg .f32   %f<4>;
+
+    ld.param.u64    %rd1, [param_a];
+    ld.param.u64    %rd2, [param_b];
+    ld.param.u64    %rd3, [param_c];
+    ld.param.u32    %r2,  [param_n];
+
+    // Compute global thread index: tid = blockIdx.x * blockDim.x + threadIdx.x
+    mov.u32         %r3, %ctaid.x;
+    mov.u32         %r4, %ntid.x;
+    mov.u32         %r5, %tid.x;
+    mad.lo.s32      %r1, %r3, %r4, %r5;
+
+    // Bounds check
+    setp.ge.s32     %p1, %r1, %r2;
+    @%p1 bra        $exit;
+
+    // Load a[tid] and b[tid] — coalesced (stride=1)
+    cvta.to.global.u64  %rd4, %rd1;
+    mul.wide.s32        %rd5, %r1, 4;
+    add.u64             %rd6, %rd4, %rd5;
+    ld.global.f32       %f1, [%rd6];
+
+    cvta.to.global.u64  %rd7, %rd2;
+    add.u64             %rd8, %rd7, %rd5;
+    ld.global.f32       %f2, [%rd8];
+
+    // c[tid] = a[tid] + b[tid]
+    add.f32             %f3, %f1, %f2;
+
+    cvta.to.global.u64  %rd9, %rd3;
+    add.u64             %rd10, %rd9, %rd5;
+    st.global.f32       [%rd10], %f3;
+
+$exit:
+    ret;
+}
