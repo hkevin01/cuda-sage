@@ -1,14 +1,24 @@
 # cuda-sage
 
-**CUDA/PTX Static Analysis & Guidance Engine** — GPU-free static analyzer for NVIDIA PTX assembly that surfaces warp divergence, register spills, and occupancy bottlenecks before you ever touch a profiler.
+<!-- brass-brief:intro -->
+## Executive Summary For Leadership
 
-```
-cuda-sage analyze kernel.ptx --arch sm_80 --curve
-cuda-sage diff baseline.ptx optimized.ptx --arch sm_86
-cuda-sage list-archs
-```
+Cuda Sage is designed to solve a specific business and process problem, not just showcase technical capability. NVIDIA's ecosystem gives you post-execution profilers (Nsight Compute, nvprof). Those tools are powerful, but they require a working GPU, a compiled binary, a runtime environment, and time to run. The result is a more repeatable operating model where leadership can compare progress, quality, and impact with less ambiguity.
 
----
+## Current State Without This Project
+
+Analytics efforts are often ad-hoc, which makes outcomes difficult to reproduce or trust. This increases operational friction, slows decision cycles, and makes results harder to compare across teams.
+
+## Why This Project Is Needed Now
+
+This project provides a structured analytics path from input data to measurable outcomes. As a prototype, it allows leadership to validate value early before committing to a larger rollout.
+
+## Expected Process Improvements
+
+- Higher reliability, quicker iteration, and stronger model governance.
+- Better executive visibility into status, bottlenecks, and next priorities.
+- Clearer linkage between technical outputs and business decisions.
+- Reduced rework through standardized execution patterns.
 
 ## Why
 
@@ -99,6 +109,9 @@ Five transform passes (applied in order):
 
 ## Architecture Support
 
+<!-- brass-brief:table-pre -->
+> **Leadership context for Cuda Sage:** This table highlights capability, gaps, and expected impact to support faster prioritization decisions.
+
 | SM Target | GPU                     | Max Warps/SM | Shared Mem/SM |
 |-----------|-------------------------|:------------:|:-------------:|
 | sm_70     | Volta V100              | 64           | 96 KB         |
@@ -107,6 +120,11 @@ Five transform passes (applied in order):
 | sm_86     | Ampere RTX 3080/3090    | 48           | 100 KB        |
 | sm_89     | Ada Lovelace RTX 4090   | 48           | 100 KB        |
 | sm_90     | Hopper H100             | 64           | 228 KB        |
+
+<!-- brass-brief:table-post -->
+> **How this helps the core problem:** Use this view to choose what to pilot first, what to scale next, and what to monitor for measurable process improvement.
+
+ Use the table as a planning baseline for staffing, risk reduction, and process improvement. The practical goal is to move from reactive work to repeatable, measurable execution with clearer accountability.
 
 ---
 
