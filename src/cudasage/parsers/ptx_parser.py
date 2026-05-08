@@ -62,7 +62,9 @@ class Instruction:
     """A single decoded PTX instruction."""
     opcode: str       # e.g. "ld.global.f32"
     operands: str     # raw operand string
-    line_no: int
+    line_no: int      # 1-based line number in the full PTX file
+    kernel_line_no: int = 0  # 1-based line number relative to this kernel body
+    source_line: str = ""    # exact source line text for precise reporting
     predicate: str = ""  # e.g. "%p2" or "!%p1" if guarded by @pred
 
 
@@ -247,7 +249,14 @@ class PTXParser:
                     i += 1
                     continue
                 pred = ("!" if neg else "") + (pred_reg or "")
-                instr = Instruction(opcode=op, operands=operands or "", line_no=i + 1, predicate=pred)
+                instr = Instruction(
+                    opcode=op,
+                    operands=operands or "",
+                    line_no=i + 1,
+                    kernel_line_no=len(kernel.source_lines),
+                    source_line=raw.rstrip("\n"),
+                    predicate=pred,
+                )
                 kernel.instructions.append(instr)
                 self._classify_instruction(kernel, op)
 

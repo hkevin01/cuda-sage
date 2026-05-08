@@ -22,11 +22,9 @@ cuda-python: https://github.com/NVIDIA/cuda-python
 NVRTC guide:  https://docs.nvidia.com/cuda/nvrtc/
 """
 from __future__ import annotations
-import hashlib
 import math
 import re
 import statistics
-import time
 from dataclasses import dataclass, field
 from typing import Any, Literal, Optional
 
@@ -223,10 +221,71 @@ def _infer_register_count(source: str) -> int:
     float_vars = len(re.findall(r"\bfloat\b", body))
     double_vars = len(re.findall(r"\bdouble\b", body))
     int_vars = len(re.findall(r"\bint\b", body))
+    ptr_vars = len(re.findall(r"\b(?:float|double|int|long|short|half|char)\s*\*", body))
     loops = len(re.findall(r"\bfor\b", body))
+    branches = len(re.findall(r"\bif\b|\bwhile\b", body))
+    sfu_calls = len(re.findall(r"\b(?:sinf?|cosf?|sqrtf?|expf?|logf?|rsqrtf?)\b", body))
 
-    estimate = 8 + float_vars + double_vars * 2 + int_vars // 2 + loops * 2
+    estimate = (
+        12
+        + float_vars
+        + double_vars * 2
+        + int_vars // 2
+        + ptr_vars
+        + loops * 2
+        + branches
+        + sfu_calls * 2
+    )
     return min(max(estimate, 8), 128)
+
+
+def _estimate_shared_mem_bytes(source: str) -> int:
+    """Estimate static shared memory footprint from source declarations."""
+    type_sizes = {
+        "char": 1,
+        "int8_t": 1,
+        "uint8_t": 1,
+        "short": 2,
+        "int16_t": 2,
+        "uint16_t": 2,
+        "half": 2,
+        "__half": 2,
+        "int": 4,
+        "uint": 4,
+        "int32_t": 4,
+        "uint32_t": 4,
+        "float": 4,
+        "double": 8,
+        "int64_t": 8,
+        "uint64_t": 8,
+        "long": 8,
+    }
+    total = 0
+    for m in re.finditer(r"__shared__\s+([A-Za-z_]\w*)\s+\w+((?:\[\d+\])+)", source):
+        dtype, dims = m.group(1), m.group(2)
+        elems = 1
+        for dim in re.findall(r"\[(\d+)\]", dims):
+            elems *= int(dim)
+        total += elems * type_sizes.get(dtype, 4)
+    return total
+
+
+def _estimate_memory_pressure(source: str) -> float:
+    """Return multiplicative memory pressure factor in [0.7, 2.0]."""
+    body_match = re.search(r"\{(.*)\}", source, re.DOTALL)
+    body = body_match.group(1) if body_match else source
+    loads = len(re.findall(r"\b\w+\s*=\s*\w+\[", body))
+    stores = len(re.findall(r"\b\w+\[.*?\]\s*=", body))
+    arith = len(re.findall(r"[+\-*/]", body))
+    mem_ops = max(1, loads + stores)
+    ratio = arith / mem_ops
+    if ratio < 1.0:
+        return 1.6
+    if ratio < 2.0:
+        return 1.3
+    if ratio > 6.0:
+        return 0.85
+    return 1.0
 
 
 def _static_score(source: str, block_size: int, arch_str: str) -> tuple[float, float]:
@@ -249,10 +308,7 @@ def _static_score(source: str, block_size: int, arch_str: str) -> tuple[float, f
     regs = _infer_register_count(source)
 
     # Shared mem estimate from __shared__ declarations
-    smem = 0
-    for m in re.finditer(r"__shared__\s+\w+\s+\w+\[(\d+)\]", source):
-        # Assume 4 bytes/element if float; overestimate is safe
-        smem += int(m.group(1)) * 4
+    smem = _estimate_shared_mem_bytes(source)
 
     result = OccupancyAnalyzer().analyze_raw(
         threads_per_block=block_size,
@@ -261,7 +317,10 @@ def _static_score(source: str, block_size: int, arch_str: str) -> tuple[float, f
         arch=arch,
     )
     occ = result.occupancy if result.occupancy > 0 else 0.01
-    time_equiv = 1000.0 / occ   # lower is better
+    memory_factor = _estimate_memory_pressure(source)
+    reg_factor = 1.0 + max(0, regs - 64) / 128.0
+    block_factor = 1.0 + abs(block_size - 256) / 1024.0
+    time_equiv = (1000.0 / occ) * memory_factor * reg_factor * block_factor  # lower is better
     return time_equiv, occ
 
 

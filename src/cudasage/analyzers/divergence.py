@@ -45,10 +45,8 @@ class DivergenceResult:
 # Patterns that taint a destination register with thread-ID dependency
 _RE_TID_SRC   = re.compile(r"%tid\.[xyz]|%laneid|%warpid")
 _RE_SETP      = re.compile(r"setp\.(\S+)\s+(%p\w+),\s*(.*)")
-_RE_COND_BRA  = re.compile(r"@(!?)(%p\w+)\s+bra")
-_RE_ARITH_TID = re.compile(r"(add|sub|mul|mad|shl|shr|and|or|rem|div).*%tid\.[xyz]")
-_RE_MOV_TID   = re.compile(r"mov\.\w+\s+(%r\w+),\s*%tid\.[xyz]")
 _RE_DEST_REG  = re.compile(r"(%[rpfd]\w+),")  # first operand = destination
+_RE_REG_TOKEN = re.compile(r"%[A-Za-z0-9_]+")
 
 # Operations that propagate taint to a new register
 _RE_TAINT_PROP = re.compile(
@@ -84,66 +82,65 @@ class DivergenceAnalyzer:
     def analyze(self, kernel: KernelInfo) -> DivergenceResult:
         result = DivergenceResult(kernel_name=kernel.name)
         tainted: set[str] = set()  # register names tainted by thread-ID values
+        high_risk_taint: set[str] = set()  # taint from odd/even style split ops
 
         for instr in kernel.instructions:
             line = instr.operands
             op = instr.opcode
             full = f"{op} {line}"
+            regs_on_line = set(_RE_REG_TOKEN.findall(full))
+            dest = self._extract_dest(line)
+            src_regs = regs_on_line - ({dest} if dest else set())
+            tainted_input = bool(src_regs & tainted)
+            has_tid_seed = _RE_TID_SRC.search(full) is not None
 
             # ── Seed: any register loaded from %tid.x/y/z ─────────────
-            if _RE_TID_SRC.search(full):
-                m = _RE_DEST_REG.search(line)
-                if m:
-                    tainted.add(m.group(1))
-                    result.tainted_regs.add(m.group(1))
+            if has_tid_seed and dest:
+                tainted.add(dest)
+                result.tainted_regs.add(dest)
 
             # ── Propagate: arithmetic on tainted registers ─────────────
-            if any(t in full for t in tainted):
+            if tainted_input or has_tid_seed:
                 pm = _RE_TAINT_PROP.match(full)
-                if pm:
-                    new_tainted = pm.group(2)
-                    tainted.add(new_tainted)
-                    result.tainted_regs.add(new_tainted)
+                if pm and dest:
+                    tainted.add(dest)
+                    result.tainted_regs.add(dest)
+                    if src_regs & high_risk_taint:
+                        high_risk_taint.add(dest)
+
+            # Track high-risk taint from odd/even partition style operations.
+            if dest and (tainted_input or has_tid_seed) and (
+                op.startswith("rem.") or op.startswith("and.")
+            ):
+                high_risk_taint.add(dest)
 
             # ── setp on tainted value → tainted predicate ─────────────
             sm = _RE_SETP.match(f"{op} {line}")
             if sm:
                 pred_reg = sm.group(2)
                 rest = sm.group(3)
+                rest_regs = set(_RE_REG_TOKEN.findall(rest))
                 # If either operand of setp is tainted, predicate is tainted
-                if any(t in rest for t in tainted) or _RE_TID_SRC.search(rest):
+                if (rest_regs & tainted) or _RE_TID_SRC.search(rest):
                     tainted.add(pred_reg)
                     result.tainted_regs.add(pred_reg)
+                    if (rest_regs & high_risk_taint) or op.startswith(("setp.and", "setp.rem")):
+                        high_risk_taint.add(pred_reg)
 
             # ── Conditional branch on tainted predicate ───────────────
             # The predicate is stored separately in instr.predicate (e.g. "%p2")
             if op in ("bra", "brx", "call") and instr.predicate:
                 pred_reg = instr.predicate.lstrip("!")
                 if pred_reg in tainted:
-                    # Determine severity
-                    # High: modulo/bitwise-AND with small constant (e.g. tid%2, tid&1)
-                    # suggests 50%+ divergence
-                    high_patterns = ["rem", "and", "mod"]
-                    severity = "medium"
-                    reason = f"Branch on predicate {pred_reg} derived from thread ID"
-
-                    # Look back through instructions: if any rem/and op touched tainted regs,
-                    # it means an odd/even split was computed from thread ID → high severity
-                    for prev in kernel.instructions:
-                        if ("rem." in prev.opcode or "and." in prev.opcode):
-                            if any(t in prev.operands for t in tainted):
-                                severity = "high"
-                                reason = (
-                                    f"Predicate {pred_reg} set by modulo/bitwise-and on thread ID "
-                                    f"— likely 50% warp divergence (odd/even split pattern)"
-                                )
-                                break
-
-                    src_line = (
-                        kernel.source_lines[instr.line_no - 1]
-                        if instr.line_no - 1 < len(kernel.source_lines)
-                        else f"{op} {line}"
+                    severity = "high" if pred_reg in high_risk_taint else "medium"
+                    reason = (
+                        f"Predicate {pred_reg} set by modulo/bitwise-and on thread ID "
+                        f"— likely 50% warp divergence (odd/even split pattern)"
+                        if severity == "high"
+                        else f"Branch on predicate {pred_reg} derived from thread ID"
                     )
+
+                    src_line = instr.source_line or f"{op} {line}"
                     result.sites.append(DivergenceSite(
                         line_no=instr.line_no,
                         line_text=src_line.strip(),
@@ -154,6 +151,11 @@ class DivergenceAnalyzer:
 
         result.suggestions = self._suggest(result)
         return result
+
+    @staticmethod
+    def _extract_dest(operands: str) -> str:
+        m = _RE_DEST_REG.search(operands)
+        return m.group(1) if m else ""
 
     @staticmethod
     def _suggest(result: DivergenceResult) -> list[str]:

@@ -8,6 +8,7 @@ Usage:
 from __future__ import annotations
 import json
 import sys
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 import typer
@@ -27,6 +28,16 @@ app = typer.Typer(
     help="CUDA/PTX Static Analysis & Guidance Engine — no GPU required.",
     add_completion=False,
 )
+
+
+class OutputFormat(str, Enum):
+    text = "text"
+    json = "json"
+
+
+class TuneStrategy(str, Enum):
+    grid = "grid"
+    random = "random"
 
 
 def _version_callback(value: bool) -> None:
@@ -66,7 +77,7 @@ def analyze(
     threads: int = typer.Option(256, "--threads", "-t", help="Assumed threads per block for occupancy"),
     curve: bool = typer.Option(False, "--curve", "-c", help="Show occupancy curve across block sizes"),
     kernel_filter: Optional[str] = typer.Option(None, "--kernel", "-k", help="Analyze only kernels matching this name"),
-    fmt: str = typer.Option("text", "--format", "-f", help="Output format: text or json"),
+    fmt: OutputFormat = typer.Option(OutputFormat.text, "--format", "-f", help="Output format: text or json"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write results to this file instead of stdout"),
 ) -> None:
     """Analyze a PTX file for occupancy, warp divergence, and memory issues."""
@@ -91,7 +102,7 @@ def analyze(
         rprint(f"[yellow]No kernels matching '{kernel_filter}'[/]")
         raise typer.Exit(0)
 
-    if fmt == "json":
+    if fmt == OutputFormat.json:
         results = []
         for kernel in filtered:
             occ_result = occ_analyzer.analyze(kernel, arch_spec, threads)
@@ -307,7 +318,7 @@ def tune(
     kernel: str = typer.Option("", "--kernel", "-k", help="Kernel entry point name"),
     arch: str = typer.Option("sm_80", "--arch", "-a", help="Target SM architecture"),
     block_sizes: str = typer.Option("", "--block-sizes", help="Comma-separated block sizes to try (e.g. 64,128,256,512)"),
-    strategy: str = typer.Option("grid", "--strategy", "-s", help="Search strategy: grid or random"),
+    strategy: TuneStrategy = typer.Option(TuneStrategy.grid, "--strategy", "-s", help="Search strategy: grid or random"),
     n: int = typer.Option(1_000_000, "--n", help="Problem size for GPU benchmarking"),
     no_gpu: bool = typer.Option(False, "--no-gpu", help="Force static model (no GPU benchmarking)"),
     use_cache: bool = typer.Option(True, "--cache/--no-cache", help="Use persistent result cache"),
@@ -326,10 +337,10 @@ def tune(
     # Build search space
     if block_sizes:
         sizes = [int(x.strip()) for x in block_sizes.split(",")]
-        space = SearchSpace([TuneParam("BLOCK_SIZE", sizes)], strategy=strategy)
+        space = SearchSpace([TuneParam("BLOCK_SIZE", sizes)], strategy=strategy.value)
     else:
         space = SearchSpace.from_source(source)
-        space.strategy = strategy
+        space.strategy = strategy.value
         if not space.params:
             # Default: sweep standard block sizes
             space = SearchSpace([TuneParam("BLOCK_SIZE", [32, 64, 128, 256, 512, 1024])])
@@ -337,7 +348,7 @@ def tune(
     cache = TuneCache() if use_cache else None
 
     rprint(f"\n[bold]cuda-sage tune[/] — [cyan]{cu_file.name}[/] ({kernel_name})\n")
-    rprint(f"Search space: {space.size} configuration(s), strategy=[bold]{strategy}[/]\n")
+    rprint(f"Search space: {space.size} configuration(s), strategy=[bold]{strategy.value}[/]\n")
 
     result = KernelAutoTuner().tune(
         source, kernel_name, space, arch=arch, n=n,

@@ -55,6 +55,7 @@ class SearchSpace:
     params: list[TuneParam] = field(default_factory=list)
     strategy: str = "grid"       # "grid" | "random"
     max_trials: int = 64
+    random_seed: int = 1337
 
     @property
     def size(self) -> int:
@@ -74,7 +75,8 @@ class SearchSpace:
         ]
         if self.strategy == "random" and len(all_configs) > self.max_trials:
             import random
-            return random.sample(all_configs, self.max_trials)
+            rng = random.Random(self.random_seed)
+            return rng.sample(all_configs, self.max_trials)
         return all_configs
 
     def default_config(self) -> dict[str, Any]:
