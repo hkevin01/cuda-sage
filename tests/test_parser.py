@@ -81,3 +81,17 @@ def test_physical_regs_calculation():
     phys = kernel.registers.physical_regs
     assert phys > 0
     assert phys <= 255  # hardware limit
+
+
+def test_parse_string_empty_fast_path():
+    assert PTXParser().parse_string("   \n\n") == []
+
+
+def test_parse_string_type_guard_raises():
+    with pytest.raises(TypeError):
+        PTXParser().parse_string(None)  # type: ignore[arg-type]
+
+
+def test_parse_file_missing_raises():
+    with pytest.raises(FileNotFoundError):
+        PTXParser().parse_file(FIXTURES / "missing.ptx")

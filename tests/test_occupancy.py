@@ -60,6 +60,12 @@ def test_occupancy_curve_increases_with_more_threads_for_small_kernels():
         assert pt.occupancy > 0.0
 
 
+def test_occupancy_curve_invalid_thread_list_returns_empty():
+    k = make_kernel(regs=8, smem=0)
+    curve = OccupancyAnalyzer().occupancy_curve(k, A100, [0, -32, -1])
+    assert curve == []
+
+
 def test_zero_threads_does_not_crash():
     k = make_kernel(regs=32, smem=0)
     result = OccupancyAnalyzer().analyze(k, A100, threads_per_block=0)

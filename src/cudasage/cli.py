@@ -82,19 +82,22 @@ def main(
 @app.command()
 def analyze(
     ptx_file: Path = typer.Argument(..., help="Path to .ptx file to analyze"),
-    arch: str = typer.Option(_env_default_arch(), "--arch", "-a", help="Target SM architecture (e.g. sm_80, sm_90)"),
-    threads: int = typer.Option(_env_default_threads(), "--threads", "-t", help="Assumed threads per block for occupancy"),
+    arch: Optional[str] = typer.Option(None, "--arch", "-a", help="Target SM architecture (e.g. sm_80, sm_90)"),
+    threads: Optional[int] = typer.Option(None, "--threads", "-t", help="Assumed threads per block for occupancy"),
     curve: bool = typer.Option(False, "--curve", "-c", help="Show occupancy curve across block sizes"),
     kernel_filter: Optional[str] = typer.Option(None, "--kernel", "-k", help="Analyze only kernels matching this name"),
     fmt: OutputFormat = typer.Option(OutputFormat.text, "--format", "-f", help="Output format: text or json"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write results to this file instead of stdout"),
 ) -> None:
     """Analyze a PTX file for occupancy, warp divergence, and memory issues."""
+    arch_value = (arch or _env_default_arch()).strip()
+    threads_value = threads if threads is not None else _env_default_threads()
+
     if not ptx_file.exists() or not ptx_file.is_file():
         rprint(f"[red]Error:[/] File not found: {ptx_file}")
         raise typer.Exit(1)
-    if threads <= 0:
-        rprint(f"[red]Error:[/] --threads must be positive (got {threads})")
+    if threads_value <= 0:
+        rprint(f"[red]Error:[/] --threads must be positive (got {threads_value})")
         raise typer.Exit(1)
 
     parser = PTXParser()
@@ -104,7 +107,7 @@ def analyze(
         rprint(f"[yellow]No kernel entries (.entry) found in {ptx_file}[/]")
         raise typer.Exit(0)
 
-    arch_spec = get_arch(arch)
+    arch_spec = get_arch(arch_value)
     occ_analyzer, div_analyzer, mem_analyzer = _init_analyzers()
 
     filtered = [k for k in kernels if not kernel_filter or kernel_filter in k.name]
@@ -115,7 +118,7 @@ def analyze(
     if fmt == OutputFormat.json:
         results = []
         for kernel in filtered:
-            occ_result = occ_analyzer.analyze(kernel, arch_spec, threads)
+            occ_result = occ_analyzer.analyze(kernel, arch_spec, threads_value)
             occ_curve = occ_analyzer.occupancy_curve(kernel, arch_spec) if curve else None
             div_result = div_analyzer.analyze(kernel)
             mem_result = mem_analyzer.analyze(kernel)
@@ -136,7 +139,7 @@ def analyze(
     )
 
     for kernel in filtered:
-        occ_result = occ_analyzer.analyze(kernel, arch_spec, threads)
+        occ_result = occ_analyzer.analyze(kernel, arch_spec, threads_value)
         occ_curve = occ_analyzer.occupancy_curve(kernel, arch_spec) if curve else None
         div_result = div_analyzer.analyze(kernel)
         mem_result = mem_analyzer.analyze(kernel)
@@ -147,20 +150,23 @@ def analyze(
 def diff(
     baseline: Path = typer.Argument(..., help="Baseline PTX file"),
     optimized: Path = typer.Argument(..., help="Optimized PTX file to compare against baseline"),
-    arch: str = typer.Option(_env_default_arch(), "--arch", "-a"),
-    threads: int = typer.Option(_env_default_threads(), "--threads", "-t"),
+    arch: Optional[str] = typer.Option(None, "--arch", "-a"),
+    threads: Optional[int] = typer.Option(None, "--threads", "-t"),
 ) -> None:
     """Compare two PTX files and report performance regressions or improvements."""
+    arch_value = (arch or _env_default_arch()).strip()
+    threads_value = threads if threads is not None else _env_default_threads()
+
     for f in (baseline, optimized):
         if not f.exists() or not f.is_file():
             rprint(f"[red]Error:[/] File not found: {f}")
             raise typer.Exit(1)
-    if threads <= 0:
-        rprint(f"[red]Error:[/] --threads must be positive (got {threads})")
+    if threads_value <= 0:
+        rprint(f"[red]Error:[/] --threads must be positive (got {threads_value})")
         raise typer.Exit(1)
 
     parser = PTXParser()
-    arch_spec = get_arch(arch)
+    arch_spec = get_arch(arch_value)
     occ_analyzer, div_analyzer, mem_analyzer = _init_analyzers()
 
     base_kernels = {k.name: k for k in parser.parse_file(baseline)}
@@ -183,8 +189,8 @@ def diff(
 
     for name in sorted(common):
         bk, ok = base_kernels[name], opt_kernels[name]
-        b_occ = occ_analyzer.analyze(bk, arch_spec, threads)
-        o_occ = occ_analyzer.analyze(ok, arch_spec, threads)
+        b_occ = occ_analyzer.analyze(bk, arch_spec, threads_value)
+        o_occ = occ_analyzer.analyze(ok, arch_spec, threads_value)
         b_div = div_analyzer.analyze(bk)
         o_div = div_analyzer.analyze(ok)
         b_mem = mem_analyzer.analyze(bk)

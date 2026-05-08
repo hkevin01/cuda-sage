@@ -97,8 +97,6 @@ class MemoryAnalyzer:
     # ─────────────────────────────────────────────────────────────────────────
     def analyze(self, kernel: KernelInfo) -> MemoryResult:
         result = MemoryResult(kernel_name=kernel.name)
-        if not kernel.instructions:
-            return result
 
         # ── Copy instruction counts from KernelInfo ───────────────────────
         result.global_load_count  = kernel.global_loads
