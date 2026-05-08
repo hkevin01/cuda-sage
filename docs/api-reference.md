@@ -25,7 +25,7 @@ kernels = parser.parse_string(ptx_text)
 
 | Method | Signature | Description |
 | --- | --- | --- |
-| parse_file | `(path: str | Path) -> list[KernelInfo]` | Parse PTX from disk. |
+| parse_file | `(path: str \| Path) -> list[KernelInfo]` | Parse PTX from disk. |
 | parse_string | `(text: str) -> list[KernelInfo]` | Parse PTX from an in-memory string. |
 
 ### KernelInfo
@@ -158,7 +158,7 @@ Properties:
 | Field | Type | Notes |
 | --- | --- | --- |
 | access_pattern | `str` | Instruction snippet that triggered risk. |
-| stride_hint | `int | None` | Parsed stride if available. |
+| stride_hint | `int \| None` | Parsed stride if available. |
 | risk_level | `str` | `low`, `medium`, or `high`. |
 | description | `str` | Human-readable explanation. |
 

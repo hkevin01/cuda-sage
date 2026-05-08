@@ -79,19 +79,6 @@ class OccupancyAnalyzer:
         smem = kernel.shared_mem_bytes
         return self._calculate(arch, threads_per_block, regs, smem)
 
-    def analyze_raw(
-        self,
-        threads_per_block: int,
-        regs_per_thread: int,
-        shared_mem_bytes: int,
-        arch: Architecture,
-    ) -> OccupancyResult:
-        """Compute occupancy directly from raw values — no KernelInfo needed.
-
-        Used by the tune module's static cost model when no PTX is available.
-        """
-        return self._calculate(arch, threads_per_block, regs_per_thread, shared_mem_bytes)
-
     # ─────────────────────────────────────────────────────────────────────────
     # Method:         occupancy_curve
     # Purpose:        Sweep block sizes and return occupancy at each point.
@@ -234,7 +221,7 @@ class OccupancyAnalyzer:
         if r.limiting_factor == "shared_memory":
             suggestions.append(
                 f"Shared memory ({smem / 1024:.1f} KB/block) is the bottleneck. "
-                "Consider using dynamic shared memory with cudaFuncSetAttribute to tune "
+                "Consider using dynamic shared memory with cudaFuncSetAttribute to adjust "
                 "smem/L1 split, or tile smaller to reduce smem footprint."
             )
 
