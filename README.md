@@ -152,14 +152,17 @@ This command runs occupancy, divergence, and memory analysis on each kernel entr
 
 If you prefer a native desktop app over command-line usage, cuda-sage now includes a PyQt6 GUI.
 
-The GUI is intentionally built on the same parser and analyzer pipeline as the CLI, so it is a different interface, not a different engine. You get equivalent results with a workflow that is easier for visual review, demonstrations, and onboarding engineers who prefer desktop tools.
+The GUI is intentionally built on the same parser and analyzer pipeline as the CLI, so it is a different interface, not a different engine. The latest desktop pass gives it a more modern material-style presentation, theme switching, richer summary cards, and a cleaner analysis workspace that feels closer to a current desktop product than a thin wrapper around command-line flags.
+
+This matters because CUDA review work is often collaborative. A polished desktop surface makes it easier to walk through PTX findings in pair sessions, performance reviews, demos, and onboarding without forcing every participant to stay in a terminal-centric workflow.
 
 ### Why A GUI Is Useful
 
 - It lowers the friction for teams that do not want to memorize CLI flags.
-- It makes report interpretation faster with side-by-side tabs for summary, metrics, JSON, and diffs.
+- It makes report interpretation faster with a card-based summary, tabbed results, and clearer visual separation between inputs and findings.
 - It helps cross-functional reviews where not every participant is comfortable with terminal tooling.
 - It preserves reproducibility by exporting the same machine-consumable JSON schema used in automation.
+- It supports runtime theme switching, which helps the tool feel native in both dark and light desktop environments.
 
 ### Install GUI Dependencies
 
@@ -177,38 +180,47 @@ cuda-sage-gui
 
 | Section | Capability |
 | --- | --- |
-| Analyze tab | Pick a PTX file, choose architecture and threads/block, optional kernel filter, optional occupancy curve |
+| Hero header | Project overview, runtime theme switcher, and a cleaner desktop entry point |
+| Analyze panel | Pick a PTX file, choose architecture and threads/block, optional kernel filter, optional occupancy curve |
+| Summary tab | KPI cards for kernel count, occupancy, divergence, and spills plus rich narrative recommendations |
 | Metrics tab | Per-kernel occupancy, bottleneck, register count, spill count, divergence count, sync-risk flag |
 | JSON tab | Full JSON report preview matching CLI schema |
-| Diff tab | Baseline vs optimized PTX comparison with per-kernel deltas and verdict |
+| Action Plan tab | Plain-language explanation of each metric, where to tune next, and concrete code modifications suggested by the analysis |
+| Diff tab | Baseline vs optimized PTX comparison with per-kernel deltas and verdict rendered in a more readable report layout |
 | Export | Save current analysis JSON report directly from the desktop app |
 
 > [!NOTE]
-> The desktop app uses the same parser and analyzer pipeline as CLI mode, so results remain consistent across interfaces.
+> The desktop app uses the same parser and analyzer pipeline as CLI mode, so results remain consistent across interfaces even though the presentation is now significantly more polished.
 
 ### GUI Screenshots
 
 #### Summary View
 
-The summary tab gives a compact per-kernel readout of occupancy, limiting factors, divergence signals, and memory pressure hints so reviewers can triage quickly.
+The summary tab now starts with high-level KPI cards and then drops into richer kernel-by-kernel guidance, which makes the first pass through a PTX report much faster.
 
 ![cuda-sage GUI summary tab](docs/images/gui/gui-summary.png)
 
 #### Metrics Table
 
-The metrics tab turns core findings into sortable columns for quick comparison across kernels, which is useful when choosing where to optimize first.
+The metrics tab keeps the structured comparison workflow, but it now sits inside a more modern material-styled shell with cleaner spacing and easier scanability.
 
 ![cuda-sage GUI metrics tab](docs/images/gui/gui-metrics.png)
 
 #### JSON Preview
 
-The JSON tab exposes the exact report structure that CI policies can consume, reducing the chance of mismatch between desktop review and automation behavior.
+The JSON tab still exposes the exact report structure that CI policies can consume, which reduces the chance of mismatch between desktop review and automation behavior.
 
 ![cuda-sage GUI JSON tab](docs/images/gui/gui-json.png)
 
+#### Action Plan
+
+The action-plan tab is where the GUI becomes more directive. It explains what each reported value means, points to the most likely tuning levers, and suggests concrete code changes to try next.
+
+![cuda-sage GUI action plan tab](docs/images/gui/gui-action-plan.png)
+
 #### Diff View
 
-The diff tab compares baseline and candidate PTX files with directional deltas and a verdict, which helps make regression risk visible before runtime benchmarking.
+The diff tab now presents regression direction in a cleaner report-style layout, making it easier to discuss whether a candidate PTX change is genuinely better, worse, or neutral before runtime benchmarking.
 
 ![cuda-sage GUI diff tab](docs/images/gui/gui-diff.png)
 
