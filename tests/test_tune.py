@@ -3,6 +3,7 @@ import pytest
 import tempfile
 from pathlib import Path
 from cudasage.tune import TuneParam, SearchSpace, KernelAutoTuner, TuneResult, TuneCache
+from cudasage.tune.benchmark import _static_score
 
 VECADD_SRC = """\
 #define BLOCK_SIZE 256
@@ -75,6 +76,16 @@ def test_search_space_empty_source():
     assert space.size == 1   # empty space → 1 config
 
 
+def test_random_strategy_is_deterministic_with_seed():
+    params = [
+        TuneParam("BLOCK_SIZE", [64, 128, 256, 512]),
+        TuneParam("TILE_SIZE", [8, 16, 32]),
+    ]
+    s1 = SearchSpace(params=params, strategy="random", max_trials=4, random_seed=99)
+    s2 = SearchSpace(params=params, strategy="random", max_trials=4, random_seed=99)
+    assert s1.configs() == s2.configs()
+
+
 # ── KernelAutoTuner (static model, no GPU) ───────────────────────────────────
 
 def test_tuner_returns_tune_result():
@@ -132,6 +143,26 @@ def test_tuner_best_time_le_default():
         VECADD_SRC, "vecadd", space, arch="sm_80", force_model=True
     )
     assert result.best_time_ms <= result.default_time_ms + 1e-9
+
+
+def test_static_score_penalizes_large_shared_memory():
+    src_small = """
+__global__ void k(float* x) {
+    __shared__ float tile[32];
+    int i = threadIdx.x;
+    x[i] = tile[i & 31];
+}
+"""
+    src_large = """
+__global__ void k(float* x) {
+    __shared__ float tile[256][256];
+    int i = threadIdx.x;
+    x[i] = tile[0][i & 255];
+}
+"""
+    t_small, _ = _static_score(src_small, 256, "sm_80")
+    t_large, _ = _static_score(src_large, 256, "sm_80")
+    assert t_large > t_small
 
 
 # ── TuneCache ────────────────────────────────────────────────────────────────

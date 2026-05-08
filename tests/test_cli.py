@@ -178,6 +178,14 @@ def test_analyze_json_output_to_file(tmp_path):
     assert data[0]["kernel"] == "vecadd"
 
 
+def test_analyze_invalid_format_value_exits_nonzero():
+    result = runner.invoke(app, [
+        "analyze", str(FIXTURES / "vecadd.ptx"),
+        "--arch", "sm_80", "--format", "yaml",
+    ])
+    assert result.exit_code != 0
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # diff command
 # ─────────────────────────────────────────────────────────────────────────────
