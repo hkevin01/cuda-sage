@@ -8,6 +8,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -37,6 +38,27 @@ class OutputFormat(str, Enum):
     json = "json"
 
 
+def _env_default_arch() -> str:
+    """Return configured default architecture from env, with safe fallback."""
+    value = os.getenv("CUDA_SAGE_DEFAULT_ARCH", "sm_80").strip()
+    return value or "sm_80"
+
+
+def _env_default_threads() -> int:
+    """Return configured default threads/block from env, with safe fallback."""
+    raw = os.getenv("CUDA_SAGE_DEFAULT_THREADS", "256").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 256
+    return value if value > 0 else 256
+
+
+def _init_analyzers() -> tuple[OccupancyAnalyzer, DivergenceAnalyzer, MemoryAnalyzer]:
+    """Initialize analyzers in one place to keep command setup consistent."""
+    return OccupancyAnalyzer(), DivergenceAnalyzer(), MemoryAnalyzer()
+
+
 def _version_callback(value: bool) -> None:
     if value:
         rprint(f"cuda-sage v{__version__}")
@@ -60,16 +82,19 @@ def main(
 @app.command()
 def analyze(
     ptx_file: Path = typer.Argument(..., help="Path to .ptx file to analyze"),
-    arch: str = typer.Option("sm_80", "--arch", "-a", help="Target SM architecture (e.g. sm_80, sm_90)"),
-    threads: int = typer.Option(256, "--threads", "-t", help="Assumed threads per block for occupancy"),
+    arch: str = typer.Option(_env_default_arch(), "--arch", "-a", help="Target SM architecture (e.g. sm_80, sm_90)"),
+    threads: int = typer.Option(_env_default_threads(), "--threads", "-t", help="Assumed threads per block for occupancy"),
     curve: bool = typer.Option(False, "--curve", "-c", help="Show occupancy curve across block sizes"),
     kernel_filter: Optional[str] = typer.Option(None, "--kernel", "-k", help="Analyze only kernels matching this name"),
     fmt: OutputFormat = typer.Option(OutputFormat.text, "--format", "-f", help="Output format: text or json"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write results to this file instead of stdout"),
 ) -> None:
     """Analyze a PTX file for occupancy, warp divergence, and memory issues."""
-    if not ptx_file.exists():
+    if not ptx_file.exists() or not ptx_file.is_file():
         rprint(f"[red]Error:[/] File not found: {ptx_file}")
+        raise typer.Exit(1)
+    if threads <= 0:
+        rprint(f"[red]Error:[/] --threads must be positive (got {threads})")
         raise typer.Exit(1)
 
     parser = PTXParser()
@@ -80,9 +105,7 @@ def analyze(
         raise typer.Exit(0)
 
     arch_spec = get_arch(arch)
-    occ_analyzer = OccupancyAnalyzer()
-    div_analyzer = DivergenceAnalyzer()
-    mem_analyzer = MemoryAnalyzer()
+    occ_analyzer, div_analyzer, mem_analyzer = _init_analyzers()
 
     filtered = [k for k in kernels if not kernel_filter or kernel_filter in k.name]
     if not filtered:
@@ -99,6 +122,8 @@ def analyze(
             results.append(build_json_report(kernel, occ_result, div_result, mem_result, occ_curve))
         payload = json.dumps(results, indent=2)
         if output:
+            if output.parent and not output.parent.exists():
+                output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(payload, encoding="utf-8")
             rprint(f"[green]Results written to {output}[/]")
         else:
@@ -122,20 +147,21 @@ def analyze(
 def diff(
     baseline: Path = typer.Argument(..., help="Baseline PTX file"),
     optimized: Path = typer.Argument(..., help="Optimized PTX file to compare against baseline"),
-    arch: str = typer.Option("sm_80", "--arch", "-a"),
-    threads: int = typer.Option(256, "--threads", "-t"),
+    arch: str = typer.Option(_env_default_arch(), "--arch", "-a"),
+    threads: int = typer.Option(_env_default_threads(), "--threads", "-t"),
 ) -> None:
     """Compare two PTX files and report performance regressions or improvements."""
     for f in (baseline, optimized):
-        if not f.exists():
+        if not f.exists() or not f.is_file():
             rprint(f"[red]Error:[/] File not found: {f}")
             raise typer.Exit(1)
+    if threads <= 0:
+        rprint(f"[red]Error:[/] --threads must be positive (got {threads})")
+        raise typer.Exit(1)
 
     parser = PTXParser()
     arch_spec = get_arch(arch)
-    occ_analyzer = OccupancyAnalyzer()
-    div_analyzer = DivergenceAnalyzer()
-    mem_analyzer = MemoryAnalyzer()
+    occ_analyzer, div_analyzer, mem_analyzer = _init_analyzers()
 
     base_kernels = {k.name: k for k in parser.parse_file(baseline)}
     opt_kernels = {k.name: k for k in parser.parse_file(optimized)}

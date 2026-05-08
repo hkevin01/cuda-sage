@@ -81,6 +81,9 @@ class DivergenceAnalyzer:
     # ─────────────────────────────────────────────────────────────────────────
     def analyze(self, kernel: KernelInfo) -> DivergenceResult:
         result = DivergenceResult(kernel_name=kernel.name)
+        if not kernel.instructions:
+            return result
+
         tainted: set[str] = set()  # register names tainted by thread-ID values
         high_risk_taint: set[str] = set()  # taint from odd/even style split ops
 
@@ -118,7 +121,7 @@ class DivergenceAnalyzer:
             sm = _RE_SETP.match(f"{op} {line}")
             if sm:
                 pred_reg = sm.group(2)
-                rest = sm.group(3)
+                rest = sm.group(3) or ""
                 rest_regs = set(_RE_REG_TOKEN.findall(rest))
                 # If either operand of setp is tainted, predicate is tainted
                 if (rest_regs & tainted) or _RE_TID_SRC.search(rest):

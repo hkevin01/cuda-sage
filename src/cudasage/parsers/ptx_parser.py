@@ -120,7 +120,6 @@ _RE_PARAM      = re.compile(r"\.param\s+\.\w+\s+\w+")
 _RE_REG        = re.compile(r"\.reg\s+\.(\w+)\s+%\w+<(\d+)>|\.reg\s+\.(\w+)\s+%\w+;")
 _RE_SHARED     = re.compile(r"\.shared\s+(?:\.align\s+(\d+)\s+)?\.b8\s+(\w+)\[(\d+)\]")
 _RE_INSTR      = re.compile(r"^\s*(?:@(!?)(%[\w]+)\s+)?(\w[\w.]*)\s+(.*?);", re.MULTILINE)
-_RE_BLOCK_END  = re.compile(r"^}")
 
 # Instruction category prefixes
 _GLOBAL_LD     = re.compile(r"^ld\.global")
@@ -158,7 +157,10 @@ class PTXParser:
     #                 caller). UnicodeDecodeError suppressed via errors='replace'.
     # ─────────────────────────────────────────────────────────────────────────
     def parse_file(self, path: str | Path) -> list[KernelInfo]:
-        text = Path(path).read_text(encoding="utf-8", errors="replace")
+        p = Path(path)
+        if not p.exists() or not p.is_file():
+            raise FileNotFoundError(f"PTX file not found: {p}")
+        text = p.read_text(encoding="utf-8", errors="replace")
         return self.parse_string(text)
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -171,6 +173,11 @@ class PTXParser:
     # Side Effects:   None (pure function over input text).
     # ─────────────────────────────────────────────────────────────────────────
     def parse_string(self, text: str) -> list[KernelInfo]:
+        if not isinstance(text, str):
+            raise TypeError("text must be a str")
+        if not text.strip():
+            return []
+
         lines = text.splitlines()
         kernels: list[KernelInfo] = []
 
@@ -208,6 +215,11 @@ class PTXParser:
     # ─────────────────────────────────────────────────────────────────────────
     def _parse_kernel_body(self, lines: list[str], start: int, kernel: KernelInfo) -> int:
         """Parse from after the .entry line until the closing brace. Returns next line index."""
+        if start < 0:
+            start = 0
+        if start >= len(lines):
+            return len(lines)
+
         depth = 0
         i = start
         while i < len(lines):
@@ -266,6 +278,8 @@ class PTXParser:
 
     @staticmethod
     def _add_regs(regs: RegisterFile, rtype: str, count: int) -> None:
+        if count <= 0:
+            return
         mapping = {
             "pred": "pred", "b16": "b16", "b32": "b32", "b64": "b64",
             "f16": "f16", "f32": "f32", "f64": "f64",
@@ -285,6 +299,8 @@ class PTXParser:
     # ─────────────────────────────────────────────────────────────────────────
     @staticmethod
     def _classify_instruction(kernel: KernelInfo, op: str) -> None:
+        if not op:
+            return
         if _GLOBAL_LD.match(op):
             kernel.global_loads += 1
         elif _GLOBAL_ST.match(op):

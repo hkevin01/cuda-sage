@@ -97,6 +97,11 @@ class OccupancyAnalyzer:
         """Return occupancy for a sweep of thread-block sizes."""
         if thread_counts is None:
             thread_counts = [32, 64, 96, 128, 192, 256, 384, 512, 768, 1024]
+        # Guard invalid/duplicate thread counts to keep reports deterministic.
+        thread_counts = [t for t in dict.fromkeys(thread_counts) if isinstance(t, int) and t > 0]
+        if not thread_counts:
+            return []
+
         regs = kernel.registers.physical_regs
         smem = kernel.shared_mem_bytes
         curve = []
@@ -124,6 +129,15 @@ class OccupancyAnalyzer:
         regs_per_thread: int,
         shared_mem_bytes: int,
     ) -> OccupancyResult:
+        if arch.max_warps_per_sm <= 0 or arch.max_threads_per_sm <= 0:
+            return OccupancyResult(
+                threads_per_block=threads_per_block,
+                regs_per_thread=regs_per_thread,
+                shared_mem_bytes=shared_mem_bytes,
+                arch=arch.sm,
+                limiting_factor="arch_invalid",
+            )
+
         ws = arch.warp_size
         result = OccupancyResult(
             threads_per_block=threads_per_block,

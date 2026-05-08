@@ -98,6 +98,10 @@ def get_arch(sm: str) -> Architecture:
 
     Falls back to the closest known architecture if exact match not found.
     """
+    if not isinstance(sm, str) or not sm.strip():
+        return ARCHITECTURES["sm_80"]
+
+    sm = sm.strip()
     if sm in ARCHITECTURES:
         return ARCHITECTURES[sm]
     # Fallback: find nearest SM version <= requested

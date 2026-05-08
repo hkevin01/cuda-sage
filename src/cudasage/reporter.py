@@ -23,6 +23,8 @@ _OCC_COLORS = [(0.0, "red"), (0.25, "yellow"), (0.5, "green"), (0.75, "bright_gr
 
 
 def _occ_color(occ: float) -> str:
+    if occ != occ:  # NaN guard
+        return "red"
     color = "red"
     for threshold, c in _OCC_COLORS:
         if occ >= threshold:
@@ -31,6 +33,9 @@ def _occ_color(occ: float) -> str:
 
 
 def _occ_bar(occ: float, width: int = 30) -> str:
+    if width <= 0:
+        return ""
+    occ = max(0.0, min(1.0, occ))
     filled = round(occ * width)
     return "█" * filled + "░" * (width - filled)
 

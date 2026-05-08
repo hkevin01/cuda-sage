@@ -72,6 +72,14 @@ def test_analyze_file_not_found_exits_one():
     assert result.exit_code == 1
 
 
+def test_analyze_threads_guard_exits_one():
+    result = runner.invoke(app, [
+        "analyze", str(FIXTURES / "vecadd.ptx"),
+        "--threads", "0",
+    ])
+    assert result.exit_code == 1
+
+
 def test_analyze_kernel_filter_match():
     result = runner.invoke(app, [
         "analyze", str(FIXTURES / "vecadd.ptx"),
@@ -237,3 +245,20 @@ def test_diff_missing_optimized_exits_one():
         "--arch", "sm_80",
     ])
     assert result.exit_code == 1
+
+
+def test_diff_threads_guard_exits_one():
+    result = runner.invoke(app, [
+        "diff",
+        str(FIXTURES / "vecadd.ptx"),
+        str(FIXTURES / "vecadd.ptx"),
+        "--threads", "0",
+    ])
+    assert result.exit_code == 1
+
+
+def test_analyze_uses_env_default_arch(monkeypatch):
+    monkeypatch.setenv("CUDA_SAGE_DEFAULT_ARCH", "sm_86")
+    result = runner.invoke(app, ["analyze", str(FIXTURES / "vecadd.ptx")])
+    assert result.exit_code == 0
+    assert "sm_86" in result.output

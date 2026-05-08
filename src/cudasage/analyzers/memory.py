@@ -97,6 +97,8 @@ class MemoryAnalyzer:
     # ─────────────────────────────────────────────────────────────────────────
     def analyze(self, kernel: KernelInfo) -> MemoryResult:
         result = MemoryResult(kernel_name=kernel.name)
+        if not kernel.instructions:
+            return result
 
         # ── Copy instruction counts from KernelInfo ───────────────────────
         result.global_load_count  = kernel.global_loads
@@ -145,13 +147,19 @@ class MemoryAnalyzer:
     @staticmethod
     def _detect_bank_conflicts(kernel: KernelInfo) -> list[BankConflictRisk]:
         risks: list[BankConflictRisk] = []
+        if not kernel.instructions:
+            return risks
+
         for instr in kernel.instructions:
             full = f"{instr.opcode} {instr.operands}"
             if not ("ld.shared" in full or "st.shared" in full):
                 continue
             m = _RE_SHARED_STRIDE.search(full)
             if m:
-                stride = int(m.group(1))
+                try:
+                    stride = int(m.group(1))
+                except ValueError:
+                    continue
                 # Stride of 0 or 1 → no conflict; stride == 32 → 32-way conflict
                 if stride == 0 or stride == 1:
                     continue
