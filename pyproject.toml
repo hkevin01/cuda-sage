@@ -32,9 +32,11 @@ Changelog = "https://github.com/hkevin01/cuda-sage/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-cov>=5"]
+gui = ["PyQt6>=6.7"]
 
 [project.scripts]
 cuda-sage = "cudasage.cli:app"
+cuda-sage-gui = "cudasage.gui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
