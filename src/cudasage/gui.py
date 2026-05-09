@@ -593,7 +593,7 @@ def main() -> None:
                 "dark_teal.xml" if "dark_teal.xml" in self.available_themes else self.available_themes[0]
             )
 
-            self.setWindowTitle("cuda-sage Studio v0.3.0")
+            self.setWindowTitle("cuda-sage Studio v0.3.1")
             self.resize(1280, 860)
 
             self.parser = PTXParser()
@@ -660,7 +660,7 @@ def main() -> None:
             hero_subtitle = QLabel(
                 "A polished desktop workspace for occupancy analysis, divergence triage, "
                 "memory-risk review, and PTX diffing without living in the terminal.  "
-                "\u2014  v0.3.0"
+                "\u2014  v0.3.1"
             )
             hero_subtitle.setObjectName("heroSubtitle")
             hero_subtitle.setWordWrap(True)
