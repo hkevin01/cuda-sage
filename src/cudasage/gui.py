@@ -715,16 +715,25 @@ def main() -> None:
             save_json_btn = QPushButton("Save JSON")
             save_json_btn.clicked.connect(self._save_json)
 
+            # 3-column grid: col 0 = fixed label, col 1 = stretching input, col 2 = fixed button
+            analyze_form.setColumnStretch(0, 0)
+            analyze_form.setColumnStretch(1, 1)
+            analyze_form.setColumnStretch(2, 0)
+            # Row 0: PTX file path + browse button
             analyze_form.addWidget(QLabel("PTX file"), 0, 0)
-            analyze_form.addWidget(self.ptx_path, 0, 1, 1, 2)
-            analyze_form.addWidget(pick_ptx_btn, 0, 3)
+            analyze_form.addWidget(self.ptx_path, 0, 1)
+            analyze_form.addWidget(pick_ptx_btn, 0, 2)
+            # Row 1: Architecture (full input width)
             analyze_form.addWidget(QLabel("Architecture"), 1, 0)
-            analyze_form.addWidget(self.arch_combo, 1, 1)
-            analyze_form.addWidget(QLabel("Threads/block"), 1, 2)
-            analyze_form.addWidget(self.threads_spin, 1, 3)
-            analyze_form.addWidget(QLabel("Kernel filter"), 2, 0)
-            analyze_form.addWidget(self.kernel_filter, 2, 1, 1, 3)
-            analyze_form.addWidget(self.curve_box, 3, 0, 1, 2)
+            analyze_form.addWidget(self.arch_combo, 1, 1, 1, 2)
+            # Row 2: Threads/block (full input width)
+            analyze_form.addWidget(QLabel("Threads/block"), 2, 0)
+            analyze_form.addWidget(self.threads_spin, 2, 1, 1, 2)
+            # Row 3: Kernel filter (full input width)
+            analyze_form.addWidget(QLabel("Kernel filter"), 3, 0)
+            analyze_form.addWidget(self.kernel_filter, 3, 1, 1, 2)
+            # Row 4: occupancy curve checkbox spanning all columns
+            analyze_form.addWidget(self.curve_box, 4, 0, 1, 3)
 
             action_row = QHBoxLayout()
             action_row.addWidget(run_btn)
@@ -756,6 +765,10 @@ def main() -> None:
             run_diff_btn.setProperty("class", "warning")
             run_diff_btn.clicked.connect(self._run_diff)
 
+            # 3-column grid: col 0 = fixed label, col 1 = stretching path input, col 2 = fixed button
+            diff_layout.setColumnStretch(0, 0)
+            diff_layout.setColumnStretch(1, 1)
+            diff_layout.setColumnStretch(2, 0)
             diff_layout.addWidget(QLabel("Baseline PTX"), 0, 0)
             diff_layout.addWidget(self.base_path, 0, 1)
             diff_layout.addWidget(base_btn, 0, 2)
