@@ -754,53 +754,65 @@ def main() -> None:
             save_json_btn.setMinimumHeight(40)
             save_json_btn.clicked.connect(self._save_json)
 
-            # --- QFormLayout: the Qt standard for label-field pairs ---
-            # FieldGrowthPolicy.ExpandingFieldsGrow ensures every input
-            # stretches to fill available horizontal space, preventing the
-            # narrow/truncated dropdowns caused by manual column arithmetic.
-            analyze_form = QFormLayout()
-            analyze_form.setLabelAlignment(
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            )
-            analyze_form.setFieldGrowthPolicy(
-                QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
-            )
-            analyze_form.setHorizontalSpacing(12)
-            analyze_form.setVerticalSpacing(12)
+            # --- Explicit per-row QHBoxLayouts ---
+            # QFormLayout.ExpandingFieldsGrow is overridden by qt-material QSS,
+            # causing combos and spinboxes to stay narrow. Using addWidget(w, 1)
+            # inside a plain QHBoxLayout is the only approach that is immune to
+            # stylesheet interference: stretch factor is a layout property, not
+            # a style property, so QSS can never shrink the field back down.
 
-            # PTX file row: path field + browse button side-by-side
-            ptx_row = QHBoxLayout()
-            ptx_row.setSpacing(8)
-            ptx_row.addWidget(self.ptx_path)
-            ptx_row.addWidget(pick_ptx_btn)
-            analyze_form.addRow("PTX file", ptx_row)
+            _LW = 110  # fixed label column width in pixels
 
-            # Architecture combo - must expand to fill label column
-            self.arch_combo.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
-            analyze_form.addRow("Architecture", self.arch_combo)
+            def _lbl(text: str) -> object:
+                """Right-aligned label with fixed width to form a consistent label column."""
+                lab = QLabel(text)
+                lab.setFixedWidth(_LW)
+                lab.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                return lab
 
-            # Threads/block spinner - expand to fill
-            self.threads_spin.setSizePolicy(
-                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-            )
-            analyze_form.addRow("Threads / block", self.threads_spin)
+            def _hrow(*widgets, stretch_idx: int = 0) -> object:
+                """One form row: fixed label column + field(s) with explicit stretch."""
+                row = QHBoxLayout()
+                row.setSpacing(8)
+                row.setContentsMargins(0, 0, 0, 0)
+                for i, w in enumerate(widgets):
+                    row.addWidget(w, 1 if i == stretch_idx else 0)
+                return row
 
-            # Kernel filter - expand to fill
-            analyze_form.addRow("Kernel filter", self.kernel_filter)
+            # PTX file: [label] [path field, stretch=1] [Browse btn]
+            self.arch_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self.threads_spin.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self.kernel_filter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self.ptx_path.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-            # Checkbox - no label so it sits flush left
-            analyze_form.addRow("", self.curve_box)
+            ptx_row = _hrow(_lbl("PTX file"), self.ptx_path, pick_ptx_btn, stretch_idx=1)
+            arch_row = _hrow(_lbl("Architecture"), self.arch_combo, stretch_idx=1)
+            threads_row = _hrow(_lbl("Threads / block"), self.threads_spin, stretch_idx=1)
+            filter_row = _hrow(_lbl("Kernel filter"), self.kernel_filter, stretch_idx=1)
+
+            curve_row = QHBoxLayout()
+            curve_row.setSpacing(8)
+            curve_row.setContentsMargins(0, 0, 0, 0)
+            curve_row.addSpacing(_LW + 8)
+            curve_row.addWidget(self.curve_box)
+            curve_row.addStretch(1)
+
+            form_vbox = QVBoxLayout()
+            form_vbox.setSpacing(10)
+            form_vbox.setContentsMargins(0, 0, 0, 0)
+            form_vbox.addLayout(ptx_row)
+            form_vbox.addLayout(arch_row)
+            form_vbox.addLayout(threads_row)
+            form_vbox.addLayout(filter_row)
+            form_vbox.addLayout(curve_row)
 
             action_row = QHBoxLayout()
             action_row.setSpacing(10)
             action_row.addWidget(run_btn)
             action_row.addWidget(save_json_btn)
             action_row.addStretch(1)
-            analyze_panel_layout = analyze_layout
-            analyze_panel_layout.addLayout(analyze_form)
-            analyze_panel_layout.addLayout(action_row)
+            analyze_layout.addLayout(form_vbox)
+            analyze_layout.addLayout(action_row)
 
             diff_panel, diff_layout_root = self._make_panel(
                 "Diff PTX",
@@ -837,35 +849,25 @@ def main() -> None:
             run_diff_btn.setMinimumHeight(40)
             run_diff_btn.clicked.connect(self._run_diff)
 
-            # QFormLayout guarantees labels align right and fields expand to fill
-            diff_form = QFormLayout()
-            diff_form.setLabelAlignment(
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-            )
-            diff_form.setFieldGrowthPolicy(
-                QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
-            )
-            diff_form.setHorizontalSpacing(12)
-            diff_form.setVerticalSpacing(12)
+            # Diff panel: same explicit-HBox-per-row approach
+            self.base_path.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self.opt_path.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-            base_row = QHBoxLayout()
-            base_row.setSpacing(8)
-            base_row.addWidget(self.base_path)
-            base_row.addWidget(base_btn)
-            diff_form.addRow("Baseline PTX", base_row)
-
-            opt_row = QHBoxLayout()
-            opt_row.setSpacing(8)
-            opt_row.addWidget(self.opt_path)
-            opt_row.addWidget(opt_btn)
-            diff_form.addRow("Optimized PTX", opt_row)
+            base_file_row = _hrow(_lbl("Baseline PTX"), self.base_path, base_btn, stretch_idx=1)
+            opt_file_row = _hrow(_lbl("Optimized PTX"), self.opt_path, opt_btn, stretch_idx=1)
 
             run_diff_row = QHBoxLayout()
             run_diff_row.addStretch(1)
             run_diff_row.addWidget(run_diff_btn)
-            diff_form.addRow("", run_diff_row)
 
-            diff_layout_root.addLayout(diff_form)
+            diff_vbox = QVBoxLayout()
+            diff_vbox.setSpacing(10)
+            diff_vbox.setContentsMargins(0, 0, 0, 0)
+            diff_vbox.addLayout(base_file_row)
+            diff_vbox.addLayout(opt_file_row)
+            diff_vbox.addLayout(run_diff_row)
+
+            diff_layout_root.addLayout(diff_vbox)
 
             controls.addWidget(analyze_panel)
             controls.addWidget(diff_panel)
