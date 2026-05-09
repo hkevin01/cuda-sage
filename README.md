@@ -194,33 +194,36 @@ cuda-sage-gui
 
 ### GUI Screenshots
 
+> [!NOTE]
+> All controls use `QFormLayout` so labels align right and every input field - including architecture and thread-count dropdowns - stretches to fill the available width. Keyboard shortcuts (`Alt+R`, `Alt+S`, `Alt+B`, `Alt+D`), tooltips, and accessible names are applied to every widget.
+
 #### Summary View
 
-The summary tab now starts with high-level KPI cards and then drops into richer kernel-by-kernel guidance, which makes the first pass through a PTX report much faster.
+KPI cards at the top surface kernels analyzed, average occupancy, divergence sites, and spill count at a glance. The panel below explains what those numbers mean and lists the top recommended modifications.
 
 ![cuda-sage GUI summary tab](docs/images/gui/gui-summary.png)
 
 #### Metrics Table
 
-The metrics tab keeps the structured comparison workflow, but it now sits inside a more modern material-styled shell with cleaner spacing and easier scanability.
+The metrics tab shows per-kernel register count, spills, divergence sites, limiter, and occupancy in a sortable table. Column headers carry tooltips that explain each metric.
 
 ![cuda-sage GUI metrics tab](docs/images/gui/gui-metrics.png)
 
 #### JSON Preview
 
-The JSON tab still exposes the exact report structure that CI policies can consume, which reduces the chance of mismatch between desktop review and automation behavior.
+The JSON tab exposes the full structured report that CI automation can consume, keeping desktop review and pipeline behavior in sync.
 
 ![cuda-sage GUI JSON tab](docs/images/gui/gui-json.png)
 
 #### Action Plan
 
-The action-plan tab is where the GUI becomes more directive. It explains what each reported value means, points to the most likely tuning levers, and suggests concrete code changes to try next.
+The action-plan tab explains what each value means, identifies the primary bottleneck, lists concrete tuning levers, and suggests specific code modifications to try next.
 
 ![cuda-sage GUI action plan tab](docs/images/gui/gui-action-plan.png)
 
 #### Diff View
 
-The diff tab now presents regression direction in a cleaner report-style layout, making it easier to discuss whether a candidate PTX change is genuinely better, worse, or neutral before runtime benchmarking.
+The diff tab compares two PTX files and reports occupancy delta, register delta, spill delta, and divergence delta per kernel with a clear IMPROVED / REGRESSION / NEUTRAL verdict.
 
 ![cuda-sage GUI diff tab](docs/images/gui/gui-diff.png)
 
