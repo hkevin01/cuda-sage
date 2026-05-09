@@ -57,6 +57,7 @@ def _require_pyqt6() -> dict[str, object]:
             QComboBox,
             QFrame,
             QFileDialog,
+            QFormLayout,
             QGridLayout,
             QGroupBox,
             QHBoxLayout,
@@ -66,6 +67,7 @@ def _require_pyqt6() -> dict[str, object]:
             QMainWindow,
             QMessageBox,
             QPushButton,
+            QSizePolicy,
             QSplitter,
             QSpinBox,
             QTableWidget,
@@ -89,6 +91,7 @@ def _require_pyqt6() -> dict[str, object]:
         "QComboBox": QComboBox,
         "QFrame": QFrame,
         "QFileDialog": QFileDialog,
+        "QFormLayout": QFormLayout,
         "QGridLayout": QGridLayout,
         "QGroupBox": QGroupBox,
         "QHBoxLayout": QHBoxLayout,
@@ -98,6 +101,7 @@ def _require_pyqt6() -> dict[str, object]:
         "QMainWindow": QMainWindow,
         "QMessageBox": QMessageBox,
         "QPushButton": QPushButton,
+        "QSizePolicy": QSizePolicy,
         "QSplitter": QSplitter,
         "QSpinBox": QSpinBox,
         "QTableWidget": QTableWidget,
@@ -559,6 +563,7 @@ def main() -> None:
     QComboBox = qt["QComboBox"]
     QFrame = qt["QFrame"]
     QFileDialog = qt["QFileDialog"]
+    QFormLayout = qt["QFormLayout"]
     QGridLayout = qt["QGridLayout"]
     QGroupBox = qt["QGroupBox"]
     QHBoxLayout = qt["QHBoxLayout"]
@@ -568,6 +573,7 @@ def main() -> None:
     QMainWindow = qt["QMainWindow"]
     QMessageBox = qt["QMessageBox"]
     QPushButton = qt["QPushButton"]
+    QSizePolicy = qt["QSizePolicy"]
     QSplitter = qt["QSplitter"]
     QSpinBox = qt["QSpinBox"]
     QTableWidget = qt["QTableWidget"]
@@ -663,6 +669,9 @@ def main() -> None:
             theme_label = QLabel("Theme")
             theme_label.setObjectName("eyebrow")
             self.theme_combo = QComboBox()
+            self.theme_combo.setToolTip("Switch the application color theme. Requires qt-material to be installed.")
+            self.theme_combo.setAccessibleName("Color theme selector")
+            self.theme_combo.setMinimumWidth(180)
             self.theme_combo.addItems(self.available_themes)
             self.theme_combo.setCurrentText(self.current_theme)
             self.theme_combo.currentTextChanged.connect(self._change_theme)
@@ -684,16 +693,26 @@ def main() -> None:
                 "Analyze PTX",
                 "Open a kernel dump, set target assumptions, and generate a structured review of bottlenecks and suggestions.",
             )
-            analyze_form = QGridLayout()
-            analyze_form.setHorizontalSpacing(12)
-            analyze_form.setVerticalSpacing(12)
 
             self.ptx_path = QLineEdit()
             self.ptx_path.setPlaceholderText("Select a .ptx file to inspect")
+            self.ptx_path.setToolTip("Path to the PTX file to analyze. Use Browse to pick a file.")
+            self.ptx_path.setAccessibleName("PTX file path")
+
             pick_ptx_btn = QPushButton("Browse...")
+            pick_ptx_btn.setToolTip("Open a file-picker dialog to select a .ptx file (Alt+B).")
+            pick_ptx_btn.setAccessibleName("Browse PTX file")
+            pick_ptx_btn.setShortcut("Alt+B")
+            pick_ptx_btn.setMinimumHeight(40)
             pick_ptx_btn.clicked.connect(self._pick_ptx_file)
 
             self.arch_combo = QComboBox()
+            self.arch_combo.setToolTip("Target GPU architecture. Occupancy limits are read from this model.")
+            self.arch_combo.setAccessibleName("Target architecture")
+            self.arch_combo.setAccessibleDescription(
+                "Select the SM generation that matches the GPU the kernel will run on."
+            )
+            self.arch_combo.setMinimumWidth(180)
             for sm in sorted(ARCHITECTURES.keys()):
                 self.arch_combo.addItem(sm)
             self.arch_combo.setCurrentText("sm_80")
@@ -702,40 +721,79 @@ def main() -> None:
             self.threads_spin.setRange(1, 1024)
             self.threads_spin.setSingleStep(32)
             self.threads_spin.setValue(256)
+            self.threads_spin.setToolTip(
+                "Assumed threads per block for occupancy calculation. Common values: 128, 256, 512."
+            )
+            self.threads_spin.setAccessibleName("Threads per block")
+            self.threads_spin.setMinimumWidth(120)
 
             self.kernel_filter = QLineEdit()
             self.kernel_filter.setPlaceholderText("Optional kernel name substring")
+            self.kernel_filter.setToolTip("Filter results to kernels whose name contains this substring (case-sensitive).")
+            self.kernel_filter.setAccessibleName("Kernel filter")
+            self.kernel_filter.setAccessibleDescription("Leave empty to analyze all kernels in the file.")
 
             self.curve_box = QCheckBox("Include occupancy curve")
+            self.curve_box.setToolTip("Emit a CSV of occupancy vs. thread-count alongside the report.")
+            self.curve_box.setAccessibleName("Include occupancy curve")
 
             run_btn = QPushButton("Run Analysis")
             run_btn.setProperty("class", "success")
+            run_btn.setToolTip("Parse the selected PTX file and run all analyzers (Alt+R).")
+            run_btn.setAccessibleName("Run Analysis")
+            run_btn.setAccessibleDescription("Analyze the selected PTX file and populate all result tabs.")
+            run_btn.setShortcut("Alt+R")
+            run_btn.setMinimumHeight(40)
             run_btn.clicked.connect(self._run_analysis)
 
             save_json_btn = QPushButton("Save JSON")
+            save_json_btn.setToolTip("Export the current analysis results to a JSON file (Alt+S).")
+            save_json_btn.setAccessibleName("Save JSON")
+            save_json_btn.setShortcut("Alt+S")
+            save_json_btn.setMinimumHeight(40)
             save_json_btn.clicked.connect(self._save_json)
 
-            # 3-column grid: col 0 = fixed label, col 1 = stretching input, col 2 = fixed button
-            analyze_form.setColumnStretch(0, 0)
-            analyze_form.setColumnStretch(1, 1)
-            analyze_form.setColumnStretch(2, 0)
-            # Row 0: PTX file path + browse button
-            analyze_form.addWidget(QLabel("PTX file"), 0, 0)
-            analyze_form.addWidget(self.ptx_path, 0, 1)
-            analyze_form.addWidget(pick_ptx_btn, 0, 2)
-            # Row 1: Architecture (full input width)
-            analyze_form.addWidget(QLabel("Architecture"), 1, 0)
-            analyze_form.addWidget(self.arch_combo, 1, 1, 1, 2)
-            # Row 2: Threads/block (full input width)
-            analyze_form.addWidget(QLabel("Threads/block"), 2, 0)
-            analyze_form.addWidget(self.threads_spin, 2, 1, 1, 2)
-            # Row 3: Kernel filter (full input width)
-            analyze_form.addWidget(QLabel("Kernel filter"), 3, 0)
-            analyze_form.addWidget(self.kernel_filter, 3, 1, 1, 2)
-            # Row 4: occupancy curve checkbox spanning all columns
-            analyze_form.addWidget(self.curve_box, 4, 0, 1, 3)
+            # --- QFormLayout: the Qt standard for label-field pairs ---
+            # FieldGrowthPolicy.ExpandingFieldsGrow ensures every input
+            # stretches to fill available horizontal space, preventing the
+            # narrow/truncated dropdowns caused by manual column arithmetic.
+            analyze_form = QFormLayout()
+            analyze_form.setLabelAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            analyze_form.setFieldGrowthPolicy(
+                QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+            )
+            analyze_form.setHorizontalSpacing(12)
+            analyze_form.setVerticalSpacing(12)
+
+            # PTX file row: path field + browse button side-by-side
+            ptx_row = QHBoxLayout()
+            ptx_row.setSpacing(8)
+            ptx_row.addWidget(self.ptx_path)
+            ptx_row.addWidget(pick_ptx_btn)
+            analyze_form.addRow("PTX file", ptx_row)
+
+            # Architecture combo - must expand to fill label column
+            self.arch_combo.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
+            analyze_form.addRow("Architecture", self.arch_combo)
+
+            # Threads/block spinner - expand to fill
+            self.threads_spin.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
+            analyze_form.addRow("Threads / block", self.threads_spin)
+
+            # Kernel filter - expand to fill
+            analyze_form.addRow("Kernel filter", self.kernel_filter)
+
+            # Checkbox - no label so it sits flush left
+            analyze_form.addRow("", self.curve_box)
 
             action_row = QHBoxLayout()
+            action_row.setSpacing(10)
             action_row.addWidget(run_btn)
             action_row.addWidget(save_json_btn)
             action_row.addStretch(1)
@@ -747,36 +805,66 @@ def main() -> None:
                 "Diff PTX",
                 "Compare two PTX artifacts and surface directional changes in occupancy, registers, spills, and divergence.",
             )
-            diff_layout = QGridLayout()
-            diff_layout.setHorizontalSpacing(12)
-            diff_layout.setVerticalSpacing(12)
 
             self.base_path = QLineEdit()
             self.base_path.setPlaceholderText("Baseline .ptx")
+            self.base_path.setToolTip("Path to the baseline (before-optimisation) PTX file.")
+            self.base_path.setAccessibleName("Baseline PTX path")
+
             base_btn = QPushButton("Browse baseline...")
+            base_btn.setToolTip("Open a file-picker dialog to select the baseline .ptx file.")
+            base_btn.setAccessibleName("Browse baseline PTX")
+            base_btn.setMinimumHeight(40)
             base_btn.clicked.connect(self._pick_baseline)
 
             self.opt_path = QLineEdit()
             self.opt_path.setPlaceholderText("Optimized .ptx")
+            self.opt_path.setToolTip("Path to the optimized (after-change) PTX file.")
+            self.opt_path.setAccessibleName("Optimized PTX path")
+
             opt_btn = QPushButton("Browse optimized...")
+            opt_btn.setToolTip("Open a file-picker dialog to select the optimized .ptx file.")
+            opt_btn.setAccessibleName("Browse optimized PTX")
+            opt_btn.setMinimumHeight(40)
             opt_btn.clicked.connect(self._pick_optimized)
 
             run_diff_btn = QPushButton("Run Diff")
             run_diff_btn.setProperty("class", "warning")
+            run_diff_btn.setToolTip("Compare the two PTX files and populate the Diff tab (Alt+D).")
+            run_diff_btn.setAccessibleName("Run Diff")
+            run_diff_btn.setShortcut("Alt+D")
+            run_diff_btn.setMinimumHeight(40)
             run_diff_btn.clicked.connect(self._run_diff)
 
-            # 3-column grid: col 0 = fixed label, col 1 = stretching path input, col 2 = fixed button
-            diff_layout.setColumnStretch(0, 0)
-            diff_layout.setColumnStretch(1, 1)
-            diff_layout.setColumnStretch(2, 0)
-            diff_layout.addWidget(QLabel("Baseline PTX"), 0, 0)
-            diff_layout.addWidget(self.base_path, 0, 1)
-            diff_layout.addWidget(base_btn, 0, 2)
-            diff_layout.addWidget(QLabel("Optimized PTX"), 1, 0)
-            diff_layout.addWidget(self.opt_path, 1, 1)
-            diff_layout.addWidget(opt_btn, 1, 2)
-            diff_layout.addWidget(run_diff_btn, 2, 2, 1, 1)
-            diff_layout_root.addLayout(diff_layout)
+            # QFormLayout guarantees labels align right and fields expand to fill
+            diff_form = QFormLayout()
+            diff_form.setLabelAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            diff_form.setFieldGrowthPolicy(
+                QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+            )
+            diff_form.setHorizontalSpacing(12)
+            diff_form.setVerticalSpacing(12)
+
+            base_row = QHBoxLayout()
+            base_row.setSpacing(8)
+            base_row.addWidget(self.base_path)
+            base_row.addWidget(base_btn)
+            diff_form.addRow("Baseline PTX", base_row)
+
+            opt_row = QHBoxLayout()
+            opt_row.setSpacing(8)
+            opt_row.addWidget(self.opt_path)
+            opt_row.addWidget(opt_btn)
+            diff_form.addRow("Optimized PTX", opt_row)
+
+            run_diff_row = QHBoxLayout()
+            run_diff_row.addStretch(1)
+            run_diff_row.addWidget(run_diff_btn)
+            diff_form.addRow("", run_diff_row)
+
+            diff_layout_root.addLayout(diff_form)
 
             controls.addWidget(analyze_panel)
             controls.addWidget(diff_panel)
@@ -857,6 +945,14 @@ def main() -> None:
             layout.addWidget(hero)
             layout.addWidget(controls)
             layout.addWidget(self.tabs)
+
+            # --- Accessibility: logical tab order ---
+            # Follows reading order: PTX path -> Browse -> Arch -> Threads ->
+            # Filter -> Curve checkbox -> Run -> Save JSON -> tabs
+            self.setTabOrder(self.ptx_path, self.arch_combo)
+            self.setTabOrder(self.arch_combo, self.threads_spin)
+            self.setTabOrder(self.threads_spin, self.kernel_filter)
+            self.setTabOrder(self.kernel_filter, self.curve_box)
 
             self.statusBar().showMessage(
                 "Ready - open a PTX file to generate a styled desktop analysis report"
