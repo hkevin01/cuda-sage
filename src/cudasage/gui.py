@@ -1187,10 +1187,26 @@ def main() -> None:
     if capture_dir_raw:
         capture_dir = Path(capture_dir_raw)
 
+        def _flush() -> None:
+            """Force a complete layout + paint cycle for offscreen rendering."""
+            for _ in range(6):
+                app.processEvents()
+
+        def _grab(filename: str) -> None:
+            _flush()
+            window.grab().save(str(capture_dir / filename))
+
         def _capture() -> None:
             capture_dir.mkdir(parents=True, exist_ok=True)
             repo_root = Path(__file__).resolve().parents[2]
             fixtures = repo_root / "tests" / "fixtures"
+
+            # Force layout to calculate before any grab: resize triggers a full
+            # geometry pass that QFormLayout needs to distribute widths correctly.
+            window.resize(1280, 860)
+            window.show()
+            window.raise_()
+            _flush()
 
             # Drive the existing UI handlers so screenshots reflect real app behavior.
             window.ptx_path.setText(str(fixtures / "vecadd.ptx"))
@@ -1199,35 +1215,30 @@ def main() -> None:
             window.kernel_filter.setText("")
             window.curve_box.setChecked(True)
             window._run_analysis()
+            _flush()
 
-            app.processEvents()
             window.tabs.setCurrentIndex(0)
-            app.processEvents()
-            window.grab().save(str(capture_dir / "gui-summary.png"))
+            _grab("gui-summary.png")
 
             window.tabs.setCurrentIndex(1)
-            app.processEvents()
-            window.grab().save(str(capture_dir / "gui-metrics.png"))
+            _grab("gui-metrics.png")
 
             window.tabs.setCurrentIndex(2)
-            app.processEvents()
-            window.grab().save(str(capture_dir / "gui-json.png"))
+            _grab("gui-json.png")
 
             window.tabs.setCurrentIndex(3)
-            app.processEvents()
-            window.grab().save(str(capture_dir / "gui-action-plan.png"))
+            _grab("gui-action-plan.png")
 
             window.base_path.setText(str(fixtures / "vecadd.ptx"))
             window.opt_path.setText(str(fixtures / "vecadd.ptx"))
             window._run_diff()
-            app.processEvents()
+            _flush()
             window.tabs.setCurrentIndex(4)
-            app.processEvents()
-            window.grab().save(str(capture_dir / "gui-diff.png"))
+            _grab("gui-diff.png")
 
             app.quit()
 
-        QTimer.singleShot(350, _capture)
+        QTimer.singleShot(500, _capture)
 
     sys.exit(app.exec())
 
