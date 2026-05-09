@@ -197,6 +197,7 @@ QTabWidget::pane {
 QLineEdit,
 QComboBox,
 QSpinBox {
+    min-height: 42px;
     padding: 8px 12px;
 }
 
@@ -672,6 +673,7 @@ def main() -> None:
             self.theme_combo = QComboBox()
             self.theme_combo.setToolTip("Switch the application color theme. Requires qt-material to be installed.")
             self.theme_combo.setAccessibleName("Color theme selector")
+            self.theme_combo.setMinimumHeight(42)
             self.theme_combo.setMinimumWidth(180)
             self.theme_combo.addItems(self.available_themes)
             self.theme_combo.setCurrentText(self.current_theme)
@@ -699,6 +701,7 @@ def main() -> None:
             self.ptx_path.setPlaceholderText("Select a .ptx file to inspect")
             self.ptx_path.setToolTip("Path to the PTX file to analyze. Use Browse to pick a file.")
             self.ptx_path.setAccessibleName("PTX file path")
+            self.ptx_path.setMinimumHeight(42)
 
             pick_ptx_btn = QPushButton("Browse...")
             pick_ptx_btn.setToolTip("Open a file-picker dialog to select a .ptx file (Alt+B).")
@@ -713,6 +716,7 @@ def main() -> None:
             self.arch_combo.setAccessibleDescription(
                 "Select the SM generation that matches the GPU the kernel will run on."
             )
+            self.arch_combo.setMinimumHeight(42)
             self.arch_combo.setMinimumWidth(180)
             for sm in sorted(ARCHITECTURES.keys()):
                 self.arch_combo.addItem(sm)
@@ -726,6 +730,7 @@ def main() -> None:
                 "Assumed threads per block for occupancy calculation. Common values: 128, 256, 512."
             )
             self.threads_spin.setAccessibleName("Threads per block")
+            self.threads_spin.setMinimumHeight(42)
             self.threads_spin.setMinimumWidth(120)
 
             self.kernel_filter = QLineEdit()
@@ -733,6 +738,7 @@ def main() -> None:
             self.kernel_filter.setToolTip("Filter results to kernels whose name contains this substring (case-sensitive).")
             self.kernel_filter.setAccessibleName("Kernel filter")
             self.kernel_filter.setAccessibleDescription("Leave empty to analyze all kernels in the file.")
+            self.kernel_filter.setMinimumHeight(42)
 
             self.curve_box = QCheckBox("Include occupancy curve")
             self.curve_box.setToolTip("Emit a CSV of occupancy vs. thread-count alongside the report.")
@@ -829,6 +835,7 @@ def main() -> None:
             self.base_path.setPlaceholderText("Baseline .ptx")
             self.base_path.setToolTip("Path to the baseline (before-optimisation) PTX file.")
             self.base_path.setAccessibleName("Baseline PTX path")
+            self.base_path.setMinimumHeight(42)
 
             base_btn = QPushButton("Browse baseline...")
             base_btn.setToolTip("Open a file-picker dialog to select the baseline .ptx file.")
@@ -840,6 +847,7 @@ def main() -> None:
             self.opt_path.setPlaceholderText("Optimized .ptx")
             self.opt_path.setToolTip("Path to the optimized (after-change) PTX file.")
             self.opt_path.setAccessibleName("Optimized PTX path")
+            self.opt_path.setMinimumHeight(42)
 
             opt_btn = QPushButton("Browse optimized...")
             opt_btn.setToolTip("Open a file-picker dialog to select the optimized .ptx file.")
